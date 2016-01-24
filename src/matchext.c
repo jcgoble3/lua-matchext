@@ -1,10 +1,11 @@
 /*
-** matchext.c, v0.0.1 2016/01/23
+** matchext.c, v0.0.1 2016/01/24
 ** Fork of Lua's built-in pattern matching with some extensions
 ** MIT license (same as Lua)
 */
 
-#define matchext_c
+
+
 
 /*
 ** TODO: Figure out which stdlibs are needed and which aren't. Visual Studio
@@ -23,6 +24,42 @@
 
 #include "lauxlib.h"
 #include "lualib.h"
+
+
+
+
+/*
+** Lua 5.1 doesn't have luaL_tolstring, so this is copied from the Lua 5.3
+** source code in lauxlib.c and modified for compatibility.
+*/
+#if LUA_VERSION_NUM == 501
+
+static const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
+  if (!luaL_callmeta(L, idx, "__tostring")) {  /* no metafield? */
+    switch (lua_type(L, idx)) {
+      case LUA_TNUMBER:
+        lua_pushfstring(L, "%d", (int)lua_tointeger(L, idx));
+        break;
+      case LUA_TSTRING:
+        lua_pushvalue(L, idx);
+        break;
+    }
+  }
+  return lua_tolstring(L, -1, len);
+}
+
+#endif
+
+
+
+
+/*
+** The pattern matching library below is copied from Lua 5.3.2's lstrlib.c.
+** Modifications are marked with "EXT" (for "extension") in a comment.
+** A few functions and defines at the bottom of the file are entirely new.
+*/
+
+
 
 
 /*
@@ -734,9 +771,17 @@ static const luaL_Reg matchext_lib[] = {
 
 
 /*
-** Open string library
+** Open library. Annoyingly, Lua 5.1 doesn't have luaL_newlib, nor does it have
+** any of the three auxlib function that luaL_newlib is defined as. And the
+** Lua 5.1 method of opening a library is not the same as Lua 5.2 and 5.3!
+** So a preprocessor directive is needed to avoid manually filling the table.
 */
-LUAMOD_API int luaopen_matchext (lua_State *L) {
+int luaopen_matchext (lua_State *L) {
+#if LUA_VERSION_NUM == 501
+  lua_createtable(L, 0, 5);
+  luaL_register(L, NULL, matchext_lib);
+#else
   luaL_newlib(L, matchext_lib);
+#endif
   return 1;
 }
