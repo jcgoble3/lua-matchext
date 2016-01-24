@@ -1,0 +1,17 @@
+# Directory holding original source code for use with diffs and patches
+PUCsrc/
+
+# Folder with Visual Studio solution and project
+vs2015/
+
+# Visual Studio compilation artifacts
+.vs/
+*.def
+*.dll
+*.exp
+*.lib
+*.obj
+
+# GCC compilation artifacts
+*.so
+*.o
