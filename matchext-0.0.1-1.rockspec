@@ -1,12 +1,13 @@
 package = 'matchext'
-version = '0.0.1-1'
+version = '0.1.0-1'
 
 source = {}
-source.url = '...'
+source.url = 'git://github.com/jcgoble3/lua-matchext.git'
+source.tag = 'v0.1.0-1'
 
 description = {}
 description.summary = 'Fork of Lua 5.3 pattern matching with added features'
-description.homepage = 'http://...'
+description.homepage = 'https://github.com/jcgoble3/lua-matchext'
 description.license = 'MIT/X11'
 description.detailed = [[
 This is a fork of Lua 5.3's pattern matching functions plus some added
