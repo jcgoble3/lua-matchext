@@ -1,0 +1,56 @@
+language: C
+
+env:
+    matrix:
+        - LUA_VERSION="5.1" LUA_POINT="5"
+        - LUA_VERSION="5.2" LUA_POINT="4"
+        - LUA_VERSION="5.3" LUA_POINT="2"
+
+os:
+    - linux
+    - osx
+
+compiler:
+    - gcc
+    - clang
+
+addons:
+    apt:
+        packages:
+            - libreadline-dev  # needed for Lua itself
+
+install:
+    # run installations from ~ instead of repo root
+    - pushd "$HOME"
+    # fetch and build Lua itself
+    - ./travis-stuff/install-lua.sh
+    # fetch and build LuaRocks
+    - ./travis-stuff/install-luarocks.sh
+    # return to repo root
+    - popd
+    # add LuaRocks's module installation paths to package.path/package.cpath
+    - eval $(luarocks path)
+
+script:
+    # test that it builds
+    # "source"ing is required because the $ROCKSPEC variable is exported
+    # not in "travis-stuff/" because it is run on my local computers also
+    - source ./build
+    # test that it works correctly
+    - ./tests/test.lua
+
+before_deploy:
+    - export DEPLOY=true
+    - if [[ $CC != gcc ]]; then export DEPLOY=false; fi
+    - if [[ $TRAVIS_OS_NAME != linux ]]; then export DEPLOY=false; fi
+    - if [[ $LUA_VERSION != "5.3" ]]; then export DEPLOY=false; fi
+
+deploy:
+    provider: script
+    # need to skip cleanup because of changes to rockspec in "before_script" step
+    skip_cleanup: true
+    on:
+        tags: true
+        condition: $DEPLOY = true
+    # for security reasons, LUAROCKS_API_KEY is specified in repository settings
+    script: ./travis-stuff/deploy.sh
