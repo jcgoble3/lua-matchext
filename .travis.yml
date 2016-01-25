@@ -20,14 +20,10 @@ addons:
             - libreadline-dev  # needed for Lua itself
 
 install:
-    # run installations from ~ instead of repo root
-    - pushd "$HOME"
     # fetch and build Lua itself
     - ./travis-stuff/install-lua.sh
     # fetch and build LuaRocks
     - ./travis-stuff/install-luarocks.sh
-    # return to repo root
-    - popd
     # add LuaRocks's module installation paths to package.path/package.cpath
     - eval $(luarocks path)
 
