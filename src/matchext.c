@@ -1,5 +1,5 @@
 /*
-** matchext.c, v0.0.1 2016/01/24
+** matchext.c
 ** Fork of Lua's built-in pattern matching with some extensions
 ** MIT license (same as Lua)
 */
