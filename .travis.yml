@@ -37,6 +37,10 @@ after_success:
     - if [[ $TRAVIS_OS_NAME != linux ]]; then export DEPLOY=false; fi
     - if [[ $LUA_VERSION != "5.3" ]]; then export DEPLOY=false; fi
 
+before_deploy:
+    # upload requires a JSON library
+    - luarocks install lua-cjson
+
 deploy:
     provider: script
     # need to skip cleanup because of changes to rockspec in "before_script" step
