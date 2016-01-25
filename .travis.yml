@@ -10,10 +10,6 @@ os:
     - linux
     - osx
 
-compiler:
-    - gcc
-    - clang
-
 addons:
     apt:
         packages:
@@ -35,7 +31,7 @@ script:
     # test that it works correctly
     - ./tests/test.lua
 
-before_deploy:
+after_success:
     - export DEPLOY=true
     - if [[ $CC != gcc ]]; then export DEPLOY=false; fi
     - if [[ $TRAVIS_OS_NAME != linux ]]; then export DEPLOY=false; fi

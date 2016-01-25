@@ -1,15 +1,7 @@
 #!/bin/bash
 
-set -ev
-
-VERSION="$(cat VERSION)"
+export VERSION="$(cat VERSION)"
 
 export ROCKSPEC="matchext-$VERSION.rockspec"
 
-sed "s/##__VERSION__##/$VERSION/" matchext.rockspec > "$ROCKSPEC"
-
-luarocks make "$ROCKSPEC"
-
-if [[ "$TRAVIS" != "true" ]]; then
-    rm "$ROCKSPEC"
-fi
+./build-core

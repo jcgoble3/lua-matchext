@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -ev
+
+sed "s/##__VERSION__##/$VERSION/" matchext.rockspec > "$ROCKSPEC"
+
+luarocks make "$ROCKSPEC"
+
+if [[ "$TRAVIS" != "true" ]]; then
+    rm "$ROCKSPEC"
+fi
