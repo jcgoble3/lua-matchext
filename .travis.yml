@@ -23,7 +23,7 @@ install:
     # add LuaRocks's module installation paths to package.path/package.cpath
     - eval $(luarocks path)
     # install testing framework
-    - luarocks install busted
+    - if [[ "$TRAVIS_TAG" = "" ]]; then luarocks install busted; fi
 
 script:
     # test that it builds; "source"ing is required because the $ROCKSPEC
@@ -31,7 +31,7 @@ script:
     # local computers also
     - source ./build
     # test that it works correctly
-    - ./tests/test.lua -o TAP
+    - if [[ "$TRAVIS_TAG" = "" ]]; then ./tests/test.lua -o TAP; fi
 
 after_success:
     - export DEPLOY=true
