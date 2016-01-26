@@ -22,14 +22,16 @@ install:
     - ./travis-stuff/install-luarocks.sh
     # add LuaRocks's module installation paths to package.path/package.cpath
     - eval $(luarocks path)
+    # install testing framework
+    - luarocks install busted
 
 script:
-    # test that it builds
-    # "source"ing is required because the $ROCKSPEC variable is exported
-    # not in "travis-stuff/" because it is run on my local computers also
+    # test that it builds; "source"ing is required because the $ROCKSPEC
+    # variable is exported; not in "travis-stuff/" because it is run on my
+    # local computers also
     - source ./build
     # test that it works correctly
-    - ./tests/test.lua
+    - ./tests/test.lua -o TAP
 
 after_success:
     - export DEPLOY=true
