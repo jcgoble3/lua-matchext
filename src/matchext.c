@@ -35,7 +35,6 @@
 #if LUA_VERSION_NUM == 501
 
 static const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
-  if (!luaL_callmeta(L, idx, "__tostring")) {  /* no metafield? */
     switch (lua_type(L, idx)) {
       case LUA_TNUMBER:
         lua_pushfstring(L, "%d", (int)lua_tointeger(L, idx));
@@ -44,7 +43,6 @@ static const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
         lua_pushvalue(L, idx);
         break;
     }
-  }
   return lua_tolstring(L, -1, len);
 }
 
