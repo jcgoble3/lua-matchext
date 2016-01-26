@@ -4,7 +4,9 @@ set -ev
 
 sed "s/##__VERSION__##/$VERSION/" matchext.rockspec > "$ROCKSPEC"
 
-luarocks make "$ROCKSPEC"
+LUAROCKS="luarocks$1"
+
+"$LUAROCKS" make "$ROCKSPEC"
 
 if [[ "$TRAVIS" != "true" ]]; then
     rm "$ROCKSPEC"
