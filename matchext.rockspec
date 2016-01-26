@@ -26,7 +26,9 @@ Possible features in the future are listed below. The priority is given on a sca
 * `|` for alternation, as in ordinary regex (priority 1)
 * Non-capturing parentheses (priority 8, but pointless unless and until support for group quantifiers or alternation is implemented)
 * Support for null characters in patterns for Lua 5.1 (priority 3)
-* ?????]]
+* Split function (priority 5)
+* ?????
+]]
 
 dependencies = {'lua >= 5.1, < 5.4'}
 
