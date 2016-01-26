@@ -35,14 +35,14 @@
 #if LUA_VERSION_NUM == 501
 
 static const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
-    switch (lua_type(L, idx)) {
-      case LUA_TNUMBER:
-        lua_pushfstring(L, "%d", (int)lua_tointeger(L, idx));
-        break;
-      case LUA_TSTRING:
-        lua_pushvalue(L, idx);
-        break;
-    }
+  switch (lua_type(L, idx)) {
+    case LUA_TNUMBER:
+      lua_pushfstring(L, "%d", (int)lua_tointeger(L, idx));
+      break;
+    case LUA_TSTRING:
+      lua_pushvalue(L, idx);
+      break;
+  }
   return lua_tolstring(L, -1, len);
 }
 
@@ -119,6 +119,7 @@ static lua_Integer posrelat (lua_Integer pos, size_t len) {
 typedef struct MatchState {
   const char *src_init;  /* init of source string */
   const char *src_end;  /* end ('\0') of source string */
+  const char *p_init;  /* start of pattern */ /* EXT */
   const char *p_end;  /* end ('\0') of pattern */
   lua_State *L;
   size_t nrep;  /* limit to avoid non-linear complexity */
@@ -517,6 +518,7 @@ static void prepstate (MatchState *ms, lua_State *L,
   ms->matchdepth = MAXCCALLS;
   ms->src_init = s;
   ms->src_end = s + ls;
+  ms->p_init = p;  /* EXT */
   ms->p_end = p + lp;
   if (ls < (MAX_SIZET - B_REPS) / A_REPS)
     ms->nrep = A_REPS * ls + B_REPS;
@@ -555,10 +557,9 @@ static int str_find_aux (lua_State *L, int find) {
     MatchState ms;
     const char *s1 = s + init - 1;
     int anchor = (*p == '^');
-    if (anchor) {
-      p++; lp--;  /* skip anchor character */
-    }
-    prepstate(&ms, L, s, ls, p, lp);
+    prepstate(&ms, L, s, ls, p, lp);  /* EXT (moved before anchor check) */
+    if (anchor)
+      p++;  /* skip anchor character */  /* EXT */
     do {
       const char *res;
       reprepstate(&ms);
@@ -588,6 +589,101 @@ static int str_match (lua_State *L) {
 }
 
 
+/* EXT - new library function; some parts copied from 'str_gsub_aux' */
+static int match_sub(lua_State *L) {
+  size_t lt, i;
+  const char *t;
+  luaL_Buffer *b;
+  luaL_checktype(L, 1, LUA_TTABLE);
+  t = luaL_checklstring(L, 2, &lt);
+  luaL_buffinit(L, b);
+  for (i = 0; i < lt; i++) {
+    if (t[i] != L_ESC)
+      luaL_addchar(b, t[i]);
+    else {
+      i++;  /* skip ESC */
+      if (!isdigit(uchar(t[i]))) {
+        if (t[i] != L_ESC)
+          luaL_error(L, "invalid use of '%c' in replacement string", L_ESC);
+        luaL_addchar(b, t[i]);
+      }
+      else {
+        lua_rawgeti(L, 1, t[i] - '0');
+        luaL_tolstring(L, -1, NULL);  /* if number, convert it to string */
+        lua_remove(L, -2);  /* remove original value */
+        luaL_addvalue(b);  /* add capture to accumulated result */
+      }
+    }
+  }
+  luaL_pushresult(b);
+  return 1;
+}
+
+
+/* EXT - entirely new function */
+static int build_result_table(MatchState *ms, const char *s, const char *e) {
+  lua_State *L = ms->L;
+  int i;
+  lua_newtable(L);  /* actual results table; stack -3 (-4 with value) */
+  lua_newtable(L);  /* match/capture starts; stack -2 (-3 with value) */
+  lua_newtable(L);  /* match/capture ends; stack -1 (-2 with value) */
+  lua_pushlstring(L, s, e - s);
+  lua_rawseti(L, -4, 0);
+  lua_pushinteger(L, s - ms->src_init + 1);
+  lua_rawseti(L, -3, 0);
+  lua_pushinteger(L, e - s + 1);
+  lua_rawseti(L, -2, 0);
+  for (i = 1; i <= ms->level; i++) {
+    ptrdiff_t cap_start = ms->capture[i-1].init - ms->src_init;
+    push_onecapture(ms, i - 1, s, e);
+    lua_rawseti(L, -4, i);
+    lua_pushinteger(L, cap_start + 1);
+    lua_rawseti(L, -3, i);
+    if (ms->capture[i-1].len == CAP_POSITION)
+      lua_pushinteger(L, cap_start + 1);
+    else lua_pushinteger(L, cap_start + ms->capture[i-1].len);
+    lua_rawseti(L, -2, i);
+  }
+  lua_setfield(L, -3, "endpos");
+  lua_setfield(L, -2, "startpos");
+  lua_pushlstring(L, ms->p_init, ms->p_end - ms->p_init);
+  lua_setfield(L, -2, "pattern");
+  lua_pushlstring(L, ms->src_init, ms->src_end - ms->src_init);
+  lua_setfield(L, -2, "source");
+  return 1;
+}
+
+
+/* EXT - new library function */
+static int table_match(lua_State *L) {
+  size_t ls, lp;
+  const char *s = luaL_checklstring(L, 1, &ls);
+  const char *p = luaL_checklstring(L, 2, &lp);
+  lua_Integer init = posrelat(luaL_optinteger(L, 3, 1), ls);
+  MatchState ms;
+  const char *s1 = s + init - 1;
+  int anchor = (*p == '^');
+  if (init < 1)
+    init = 1;
+  else if (init > (lua_Integer)ls + 1) {  /* start after string's end? */
+    lua_pushnil(L);  /* cannot find anything */
+    return 1;
+  }
+  prepstate(&ms, L, s, ls, p, lp);
+  if (anchor)
+    p++;  /* skip anchor character */  /* EXT */
+  do {
+    const char *res;
+    reprepstate(&ms);
+    if ((res=match(&ms, s1, p)) != NULL) {
+      return build_result_table(&ms, s1, res);
+    }
+  } while (s1++ < ms.src_end && !anchor);
+  lua_pushnil(L);  /* not found */
+  return 1;
+}
+
+
 /* state for 'gmatch' */
 typedef struct GMatchState {
   const char *src;  /* current position */
@@ -598,6 +694,7 @@ typedef struct GMatchState {
 
 static int gmatch_aux (lua_State *L) {
   GMatchState *gm = (GMatchState *)lua_touserdata(L, lua_upvalueindex(3));
+  int table = (int)lua_tointeger(L, lua_upvalueindex(4));  /* EXT */
   const char *src;
   for (src = gm->src; src <= gm->ms.src_end; src++) {
     const char *e;
@@ -607,14 +704,18 @@ static int gmatch_aux (lua_State *L) {
         gm->src =src + 1;  /* go at least one position */
       else
         gm->src = e;
-      return push_captures(&gm->ms, src, e);
+      if (table)  /* EXT */
+        return build_result_table(&gm->ms, src, e);
+      else
+        return push_captures(&gm->ms, src, e);
     }
   }
   return 0;  /* not found */
 }
 
 
-static int gmatch (lua_State *L) {
+/* EXT - mostly copied from 'gmatch' */
+static int gmatch_setup(lua_State *L, int table) {
   size_t ls, lp;
   const char *s = luaL_checklstring(L, 1, &ls);
   const char *p = luaL_checklstring(L, 2, &lp);
@@ -623,8 +724,21 @@ static int gmatch (lua_State *L) {
   gm = (GMatchState *)lua_newuserdata(L, sizeof(GMatchState));
   prepstate(&gm->ms, L, s, ls, p, lp);
   gm->src = s; gm->p = p;
-  lua_pushcclosure(L, gmatch_aux, 3);
+  lua_pushinteger(L, table);  /* EXT */
+  lua_pushcclosure(L, gmatch_aux, 4);
   return 1;
+}
+
+
+/* EXT - converted to wrapper */
+static int gmatch (lua_State *L) {
+  return gmatch_setup(L, 0);
+}
+
+
+/* EXT - new library function */
+static int table_gmatch(lua_State *L) {
+  return gmatch_setup(L, 1);
 }
 
 
@@ -657,13 +771,14 @@ static void add_s (MatchState *ms, luaL_Buffer *b, const char *s,
 
 
 static void add_value (MatchState *ms, luaL_Buffer *b, const char *s,
-                                       const char *e, int tr) {
+                       const char *e, int tr, int table) {
   lua_State *L = ms->L;
   switch (tr) {
     case LUA_TFUNCTION: {
       int n;
       lua_pushvalue(L, 3);
-      n = push_captures(ms, s, e);
+      if (table) n = build_result_table(ms, s, e);  /* EXT */
+      else n = push_captures(ms, s, e);
       lua_call(L, n, 1);
       break;
     }
@@ -687,7 +802,8 @@ static void add_value (MatchState *ms, luaL_Buffer *b, const char *s,
 }
 
 
-static int str_gsub (lua_State *L) {
+/* EXT - mostly copied from 'str_gsub' */
+static int str_gsub_aux (lua_State *L, int table) {
   size_t srcl, lp;
   const char *src = luaL_checklstring(L, 1, &srcl);
   const char *p = luaL_checklstring(L, 2, &lp);
@@ -701,16 +817,15 @@ static int str_gsub (lua_State *L) {
                    tr == LUA_TFUNCTION || tr == LUA_TTABLE, 3,
                       "string/function/table expected");
   luaL_buffinit(L, &b);
-  if (anchor) {
-    p++; lp--;  /* skip anchor character */
-  }
-  prepstate(&ms, L, src, srcl, p, lp);
+  prepstate(&ms, L, src, srcl, p, lp);  /* EXT - moved before anchor check */
+  if (anchor)
+    p++;  /* skip anchor character */  /* EXT */
   while (n < max_s) {
     const char *e;
     reprepstate(&ms);
     if ((e = match(&ms, src, p)) != NULL) {
       n++;
-      add_value(&ms, &b, src, e, tr);
+      add_value(&ms, &b, src, e, tr, table);  /* EXT - new 'table' argument */
     }
     if (e && e>src) /* non empty match? */
       src = e;  /* skip it */
@@ -725,6 +840,19 @@ static int str_gsub (lua_State *L) {
   return 2;
 }
 
+
+/* EXT - converted to wrapper */
+static int str_gsub(lua_State *L) {
+  return str_gsub_aux(L, 0);
+}
+
+
+/* EXT - new library function */
+static int table_gsub(lua_State *L) {
+  return str_gsub_aux(L, 1);
+}
+
+
 /* }====================================================== */
 
 
@@ -732,30 +860,9 @@ static int str_gsub (lua_State *L) {
 
 /* snip */
 
+/* EXT - all custom code below here */
 
 
-
-#define copyfield(L, from, to, key)   (lua_getfield((L), (from), (key)), \
-                                       lua_setfield((L), (to) - 1, (key)))
-
-#define setfuncfield(L, i, f, k)   (lua_pushcfunction((L), (f)), \
-                                    lua_setfield((L), (i) - 1, (k)))
-
-static int monkeypatch(lua_State *L) {
-  lua_getglobal(L, "string");
-  /* NOTE: keep the third argument here updated for the number of functions */
-  lua_createtable(L, 0, 4);  /* local t = {} */
-  copyfield(L, -2, -1, "find");  /* t.find = string.find */
-  copyfield(L, -2, -1, "match");  /* t.match = string.match */
-  copyfield(L, -2, -1, "gmatch");  /* t.gmatch = string.gmatch */
-  copyfield(L, -2, -1, "gsub");  /* t.gsub = string.gsub */
-  lua_setfield(L, -2, "original");  /* string.original = t */
-  setfuncfield(L, -1, str_find, "find");  /* string.find = matchext.find */
-  setfuncfield(L, -1, str_match, "match");  /* string.match = matchext.match */
-  setfuncfield(L, -1, gmatch, "gmatch");  /* string.gmatch = matchext.gmatch */
-  setfuncfield(L, -1, str_gsub, "gsub");  /* string.gsub = matchext.gsub */
-  return 0;
-}
 
 
 static const luaL_Reg matchext_lib[] = {
@@ -763,15 +870,38 @@ static const luaL_Reg matchext_lib[] = {
   {"match", str_match},
   {"gmatch", gmatch},
   {"gsub", str_gsub},
-  {"monkeypatch", monkeypatch},
-  {NULL, NULL}
+  {"tmatch", table_match},
+  {"tgmatch", table_gmatch},
+  {"tgsub", table_gsub},
+  {NULL, NULL}  /* monkeypatch is not listed here */
 };
+
+
+#define copyfield(L, from, to, key)   (lua_getfield((L), (from), (key)), \
+                                       lua_setfield((L), (to) - 1, (key)))
+
+static int monkeypatch(lua_State *L) {
+  lua_getglobal(L, "string");
+  /* NOTE: keep the third argument here updated for the number of functions */
+  lua_createtable(L, 0, 7);  /* local t = {} */
+  copyfield(L, -2, -1, "find");  /* t.find = string.find */
+  copyfield(L, -2, -1, "match");  /* t.match = string.match */
+  copyfield(L, -2, -1, "gmatch");  /* t.gmatch = string.gmatch */
+  copyfield(L, -2, -1, "gsub");  /* t.gsub = string.gsub */
+  lua_setfield(L, -2, "original");  /* string.original = t */
+#if LUA_VERSION_NUM == 501
+  luaL_register(L, NULL, matchext_lib);
+#else
+  luaL_setfuncs(L, matchext_lib, 0);
+#endif
+  return 0;
+}
 
 
 /*
 ** Open library. Annoyingly, Lua 5.1 doesn't have luaL_newlib, nor does it have
-** any of the three auxlib function that luaL_newlib is defined as. And the
-** Lua 5.1 method of opening a library is not the same as Lua 5.2 and 5.3!
+** any of the three auxlib functions that luaL_newlib is defined as. And the
+** Lua 5.1 method of opening a library is not available in Lua 5.2 and 5.3!
 ** So a preprocessor directive is needed to avoid manually filling the table.
 */
 int luaopen_matchext (lua_State *L) {
@@ -781,5 +911,7 @@ int luaopen_matchext (lua_State *L) {
 #else
   luaL_newlib(L, matchext_lib);
 #endif
+  lua_pushcfunction(L, monkeypatch);
+  lua_setfield(L, -2, "monkeypatch");
   return 1;
 }
