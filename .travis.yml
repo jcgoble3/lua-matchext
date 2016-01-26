@@ -1,5 +1,11 @@
 language: C
 
+branches:
+    only:
+        - master
+        - develop
+        - /v[0-9].+/
+
 env:
     matrix:
         - LUA_VERSION="5.1" LUA_POINT="5"
