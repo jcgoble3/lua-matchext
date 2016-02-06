@@ -805,7 +805,7 @@ static int table_gsub(lua_State *L) {
 
 
 /* EXT - new library function; some parts copied from 'str_gsub_aux' */
-static int matchobj_sub(lua_State *L) {
+static int matchobj_expand(lua_State *L) {
   size_t lt, i;
   const char *t;
   luaL_Buffer b;
@@ -875,8 +875,8 @@ static int monkeypatch(lua_State *L) {
 */
 int luaopen_matchext (lua_State *L) {
   luaL_newmetatable(L, MATCHOBJNAME);
-  lua_pushcfunction(L, matchobj_sub);
-  lua_setfield(L, -2, "sub");
+  lua_pushcfunction(L, matchobj_expand);
+  lua_setfield(L, -2, "expand");
   lua_pushvalue(L, -1);
   lua_setfield(L, -2, "__index");
 #if LUA_VERSION_NUM == 501

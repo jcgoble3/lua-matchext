@@ -49,7 +49,7 @@ vals.TGS = {
     result = 'abcdef;cd;d;6::b(c(d))e()f!abcdefg-2:6g'
 }
 
-vals.MTS = {
+vals.EXP = {
     str = 'abcdefg',
     patt = 'b(c(d))e()f',
     result = '0=bcdef;1=cd;2=d;3=6'
@@ -104,9 +104,9 @@ describe('All tests:', function()
         )
     end)
 
-    it('Match table sub method', function()
-        local match = matchext.tmatch(vals.MTS.str, vals.MTS.patt)
-        assert.equal(match:sub('0=%0;1=%1;2=%2;3=%3'), vals.MTS.result)
+    it('Match table expand method', function()
+        local match = matchext.tmatch(vals.EXP.str, vals.EXP.patt)
+        assert.equal(match:expand('0=%0;1=%1;2=%2;3=%3'), vals.EXP.result)
     end)
 
 
