@@ -526,7 +526,7 @@ static int build_result_table(MatchState *ms, const char *s, const char *e) {
   lua_rawseti(L, -4, 0);
   lua_pushinteger(L, s - ms->src_init + 1);
   lua_rawseti(L, -3, 0);
-  lua_pushinteger(L, e - s + 1);
+  lua_pushinteger(L, e - ms->src_init);
   lua_rawseti(L, -2, 0);
   for (i = 1; i <= ms->level; i++) {
     ptrdiff_t cap_start = ms->capture[i-1].init - ms->src_init;
