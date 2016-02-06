@@ -28,25 +28,7 @@
 
 
 
-/*
-** Lua 5.1 doesn't have luaL_tolstring, so this is copied from the Lua 5.3
-** source code in lauxlib.c and modified for compatibility.
-*/
-#if LUA_VERSION_NUM == 501
-
-static const char *luaL_tolstring (lua_State *L, int idx, size_t *len) {
-  switch (lua_type(L, idx)) {
-    case LUA_TNUMBER:
-      lua_pushfstring(L, "%d", (int)lua_tointeger(L, idx));
-      break;
-    case LUA_TSTRING:
-      lua_pushvalue(L, idx);
-      break;
-  }
-  return lua_tolstring(L, -1, len);
-}
-
-#endif
+#define MATCHOBJNAME  "matchext.MatchTable"
 
 
 
@@ -533,93 +515,6 @@ static void reprepstate (MatchState *ms) {
 }
 
 
-static int str_find_aux (lua_State *L, int find) {
-  size_t ls, lp;
-  const char *s = luaL_checklstring(L, 1, &ls);
-  const char *p = luaL_checklstring(L, 2, &lp);
-  lua_Integer init = posrelat(luaL_optinteger(L, 3, 1), ls);
-  if (init < 1) init = 1;
-  else if (init > (lua_Integer)ls + 1) {  /* start after string's end? */
-    lua_pushnil(L);  /* cannot find anything */
-    return 1;
-  }
-  /* explicit request or no special characters? */
-  if (find && (lua_toboolean(L, 4) || nospecials(p, lp))) {
-    /* do a plain search */
-    const char *s2 = lmemfind(s + init - 1, ls - (size_t)init + 1, p, lp);
-    if (s2) {
-      lua_pushinteger(L, (s2 - s) + 1);
-      lua_pushinteger(L, (s2 - s) + lp);
-      return 2;
-    }
-  }
-  else {
-    MatchState ms;
-    const char *s1 = s + init - 1;
-    int anchor = (*p == '^');
-    prepstate(&ms, L, s, ls, p, lp);  /* EXT (moved before anchor check) */
-    if (anchor)
-      p++;  /* skip anchor character */  /* EXT */
-    do {
-      const char *res;
-      reprepstate(&ms);
-      if ((res=match(&ms, s1, p)) != NULL) {
-        if (find) {
-          lua_pushinteger(L, (s1 - s) + 1);  /* start */
-          lua_pushinteger(L, res - s);   /* end */
-          return push_captures(&ms, NULL, 0) + 2;
-        }
-        else
-          return push_captures(&ms, s1, res);
-      }
-    } while (s1++ < ms.src_end && !anchor);
-  }
-  lua_pushnil(L);  /* not found */
-  return 1;
-}
-
-
-static int str_find (lua_State *L) {
-  return str_find_aux(L, 1);
-}
-
-
-static int str_match (lua_State *L) {
-  return str_find_aux(L, 0);
-}
-
-
-/* EXT - new library function; some parts copied from 'str_gsub_aux' */
-static int match_sub(lua_State *L) {
-  size_t lt, i;
-  const char *t;
-  luaL_Buffer *b;
-  luaL_checktype(L, 1, LUA_TTABLE);
-  t = luaL_checklstring(L, 2, &lt);
-  luaL_buffinit(L, b);
-  for (i = 0; i < lt; i++) {
-    if (t[i] != L_ESC)
-      luaL_addchar(b, t[i]);
-    else {
-      i++;  /* skip ESC */
-      if (!isdigit(uchar(t[i]))) {
-        if (t[i] != L_ESC)
-          luaL_error(L, "invalid use of '%c' in replacement string", L_ESC);
-        luaL_addchar(b, t[i]);
-      }
-      else {
-        lua_rawgeti(L, 1, t[i] - '0');
-        luaL_tolstring(L, -1, NULL);  /* if number, convert it to string */
-        lua_remove(L, -2);  /* remove original value */
-        luaL_addvalue(b);  /* add capture to accumulated result */
-      }
-    }
-  }
-  luaL_pushresult(b);
-  return 1;
-}
-
-
 /* EXT - entirely new function */
 static int build_result_table(MatchState *ms, const char *s, const char *e) {
   lua_State *L = ms->L;
@@ -650,37 +545,82 @@ static int build_result_table(MatchState *ms, const char *s, const char *e) {
   lua_setfield(L, -2, "pattern");
   lua_pushlstring(L, ms->src_init, ms->src_end - ms->src_init);
   lua_setfield(L, -2, "source");
+  luaL_getmetatable(L, MATCHOBJNAME);
+  lua_setmetatable(L, -2);
   return 1;
+}
+
+
+/* EXT - new constants */
+#define MODE_FIND    0
+#define MODE_MATCH   1
+#define MODE_TABLE   2
+
+
+static int str_find_aux (lua_State *L, int mode) {  /* EXT */
+  size_t ls, lp;
+  const char *s = luaL_checklstring(L, 1, &ls);
+  const char *p = luaL_checklstring(L, 2, &lp);
+  lua_Integer init = posrelat(luaL_optinteger(L, 3, 1), ls);
+  if (init < 1) init = 1;
+  else if (init > (lua_Integer)ls + 1) {  /* start after string's end? */
+    lua_pushnil(L);  /* cannot find anything */
+    return 1;
+  }
+  /* explicit request or no special characters? */  /* EXT */
+  if (mode == MODE_FIND && (lua_toboolean(L, 4) || nospecials(p, lp))) {
+    /* do a plain search */
+    const char *s2 = lmemfind(s + init - 1, ls - (size_t)init + 1, p, lp);
+    if (s2) {
+      lua_pushinteger(L, (s2 - s) + 1);
+      lua_pushinteger(L, (s2 - s) + lp);
+      return 2;
+    }
+  }
+  else {
+    MatchState ms;
+    const char *s1 = s + init - 1;
+    int anchor = (*p == '^');
+    prepstate(&ms, L, s, ls, p, lp);  /* EXT (moved before anchor check) */
+    if (anchor)
+      p++;  /* skip anchor character */  /* EXT */
+    do {
+      const char *res;
+      reprepstate(&ms);
+      if ((res=match(&ms, s1, p)) != NULL) {
+        if (mode == MODE_FIND) {  /* EXT */
+          lua_pushinteger(L, (s1 - s) + 1);  /* start */
+          lua_pushinteger(L, res - s);   /* end */
+          return push_captures(&ms, NULL, 0) + 2;
+        }
+        else if (mode == MODE_MATCH)  /* EXT */
+          return push_captures(&ms, s1, res);
+        else {  /* EXT */
+          lua_pushvalue(L, 1);
+          lua_pushvalue(L, 2);
+          return build_result_table(&ms, s1, res);
+        }
+      }
+    } while (s1++ < ms.src_end && !anchor);
+  }
+  lua_pushnil(L);  /* not found */
+  return 1;
+}
+
+
+static int str_find (lua_State *L) {
+  return str_find_aux(L, MODE_FIND);
+}
+
+
+static int str_match (lua_State *L) {
+  return str_find_aux(L, MODE_MATCH);
 }
 
 
 /* EXT - new library function */
 static int table_match(lua_State *L) {
-  size_t ls, lp;
-  const char *s = luaL_checklstring(L, 1, &ls);
-  const char *p = luaL_checklstring(L, 2, &lp);
-  lua_Integer init = posrelat(luaL_optinteger(L, 3, 1), ls);
-  MatchState ms;
-  const char *s1 = s + init - 1;
-  int anchor = (*p == '^');
-  if (init < 1)
-    init = 1;
-  else if (init > (lua_Integer)ls + 1) {  /* start after string's end? */
-    lua_pushnil(L);  /* cannot find anything */
-    return 1;
-  }
-  prepstate(&ms, L, s, ls, p, lp);
-  if (anchor)
-    p++;  /* skip anchor character */  /* EXT */
-  do {
-    const char *res;
-    reprepstate(&ms);
-    if ((res=match(&ms, s1, p)) != NULL) {
-      return build_result_table(&ms, s1, res);
-    }
-  } while (s1++ < ms.src_end && !anchor);
-  lua_pushnil(L);  /* not found */
-  return 1;
+  return str_find_aux(L, MODE_TABLE);
 }
 
 
@@ -725,7 +665,7 @@ static int gmatch_setup(lua_State *L, int table) {
   prepstate(&gm->ms, L, s, ls, p, lp);
   gm->src = s; gm->p = p;
   lua_pushinteger(L, table);  /* EXT */
-  lua_pushcclosure(L, gmatch_aux, 4);
+  lua_pushcclosure(L, gmatch_aux, 4);  /* EXT */
   return 1;
 }
 
@@ -759,10 +699,9 @@ static void add_s (MatchState *ms, luaL_Buffer *b, const char *s,
       }
       else if (news[i] == '0')
           luaL_addlstring(b, s, e - s);
-      else {
+      else {  /* EXT - removed luaL_tolstring dependency*/
         push_onecapture(ms, news[i] - '1', s, e);
-        luaL_tolstring(L, -1, NULL);  /* if number, convert it to string */
-        lua_remove(L, -2);  /* remove original value */
+        lua_tostring(L, -1);  /* if number, convert it to string */
         luaL_addvalue(b);  /* add capture to accumulated result */
       }
     }
@@ -865,6 +804,36 @@ static int table_gsub(lua_State *L) {
 
 
 
+/* EXT - new library function; some parts copied from 'str_gsub_aux' */
+static int matchobj_sub(lua_State *L) {
+  size_t lt, i;
+  const char *t;
+  luaL_Buffer b;
+  luaL_checktype(L, 1, LUA_TTABLE);
+  t = luaL_checklstring(L, 2, &lt);
+  luaL_buffinit(L, &b);
+  for (i = 0; i < lt; i++) {
+    if (t[i] != L_ESC)
+      luaL_addchar(&b, t[i]);
+    else {
+      i++;  /* skip ESC */
+      if (!isdigit(uchar(t[i]))) {
+        if (t[i] != L_ESC)
+          luaL_error(L, "invalid use of '%c' in replacement string", L_ESC);
+        luaL_addchar(&b, t[i]);
+      }
+      else {
+        lua_rawgeti(L, 1, t[i] - '0');
+        lua_tostring(L, -1);  /* if number, convert it to string */
+        luaL_addvalue(&b);  /* add capture to accumulated result */
+      }
+    }
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+
 static const luaL_Reg matchext_lib[] = {
   {"find", str_find},
   {"match", str_match},
@@ -905,6 +874,11 @@ static int monkeypatch(lua_State *L) {
 ** So a preprocessor directive is needed to avoid manually filling the table.
 */
 int luaopen_matchext (lua_State *L) {
+  luaL_newmetatable(L, MATCHOBJNAME);
+  lua_pushcfunction(L, matchobj_sub);
+  lua_setfield(L, -2, "sub");
+  lua_pushvalue(L, -1);
+  lua_setfield(L, -2, "__index");
 #if LUA_VERSION_NUM == 501
   lua_createtable(L, 0, 5);
   luaL_register(L, NULL, matchext_lib);
