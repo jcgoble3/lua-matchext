@@ -596,8 +596,6 @@ static int str_find_aux (lua_State *L, int mode) {  /* EXT */
         else if (mode == MODE_MATCH)  /* EXT */
           return push_captures(&ms, s1, res);
         else {  /* EXT */
-          lua_pushvalue(L, 1);
-          lua_pushvalue(L, 2);
           return build_result_table(&ms, s1, res);
         }
       }
