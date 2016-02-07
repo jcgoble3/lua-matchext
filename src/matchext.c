@@ -823,7 +823,14 @@ static int matchobj_expand(lua_State *L) {
         luaL_addchar(&b, t[i]);
       }
       else {
-        lua_rawgeti(L, 1, t[i] - '0');
+        int idx = t[i] - '0';
+#if LUA_VERSION_NUM == 501
+        int len = lua_objlen(L, 1);
+#else
+        int len = luaL_len(L, 1);
+#endif
+        if (idx > len) luaL_error(L, "invalid capture index %%%d", idx);
+        lua_rawgeti(L, 1, idx);
         lua_tostring(L, -1);  /* if number, convert it to string */
         luaL_addvalue(&b);  /* add capture to accumulated result */
       }
