@@ -107,6 +107,7 @@ describe('All tests:', function()
     it('Match table expand method', function()
         local match = matchext.tmatch(vals.EXP.str, vals.EXP.patt)
         assert.equal(match:expand('0=%0;1=%1;2=%2;3=%3'), vals.EXP.result)
+        assert.error(function() match:expand('%4') end)
     end)
 
 
