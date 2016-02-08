@@ -626,13 +626,13 @@ static int table_match(lua_State *L) {
 typedef struct GMatchState {
   const char *src;  /* current position */
   const char *p;  /* pattern */
+  int table;  /* EXT - whether to produce tables */
   MatchState ms;  /* match state */
 } GMatchState;
 
 
 static int gmatch_aux (lua_State *L) {
   GMatchState *gm = (GMatchState *)lua_touserdata(L, lua_upvalueindex(3));
-  int table = (int)lua_tointeger(L, lua_upvalueindex(4));  /* EXT */
   const char *src;
   for (src = gm->src; src <= gm->ms.src_end; src++) {
     const char *e;
@@ -642,7 +642,7 @@ static int gmatch_aux (lua_State *L) {
         gm->src =src + 1;  /* go at least one position */
       else
         gm->src = e;
-      if (table)  /* EXT */
+      if (gm->table)  /* EXT */
         return build_result_table(&gm->ms, src, e);
       else
         return push_captures(&gm->ms, src, e);
@@ -662,8 +662,8 @@ static int gmatch_setup(lua_State *L, int table) {
   gm = (GMatchState *)lua_newuserdata(L, sizeof(GMatchState));
   prepstate(&gm->ms, L, s, ls, p, lp);
   gm->src = s; gm->p = p;
-  lua_pushinteger(L, table);  /* EXT */
-  lua_pushcclosure(L, gmatch_aux, 4);  /* EXT */
+  gm->table = table;  /* EXT */
+  lua_pushcclosure(L, gmatch_aux, 3);  /* EXT */
   return 1;
 }
 
