@@ -240,11 +240,12 @@ static int singlematch (MatchState *ms, const char *s, const char *p,
 
 static const char *matchbalance (MatchState *ms, const char *s,
                                    const char *p) {
-  if (p >= ms->p_end - 1)
-    luaL_error(ms->L, "malformed pattern (missing arguments to '%%b')");
+  int escaped = (*(p-1) == 'B');  /* EXT */
+  if (p >= ms->p_end - 1 - escaped)
+    luaL_error(ms->L, "malformed pattern (missing arguments to '%c%c')",
+               L_ESC, *(p-1));
   if (*s != *p) return NULL;
   else {
-    int escaped = (*(p-1) == 'B') ? 1 : 0;  /* EXT */
     int b = *p;
     int e = *(p + (escaped ? 2 : 1));  /* EXT */
     int esc = escaped ? *(p + 1) : INT_MAX;  /* EXT */
