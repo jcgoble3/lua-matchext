@@ -840,6 +840,23 @@ static int matchobj_expand(lua_State *L) {
 }
 
 
+static int escape(lua_State *L) {
+  size_t sl;
+  const char *s = luaL_checklstring(L, 1, &sl);
+  const char *end = s + sl;
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  while (s < end) {
+    if (uchar(*s) < 128 && !isalnum(*s) && !iscntrl(*s))
+      luaL_addchar(&b, L_ESC);
+    luaL_addchar(&b, *s);
+    s++;
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+
 static const luaL_Reg matchext_lib[] = {
   {"find", str_find},
   {"match", str_match},
@@ -848,6 +865,7 @@ static const luaL_Reg matchext_lib[] = {
   {"tmatch", table_match},
   {"tgmatch", table_gmatch},
   {"tgsub", table_gsub},
+  {"escape", escape},
   {NULL, NULL}  /* monkeypatch is not listed here */
 };
 
