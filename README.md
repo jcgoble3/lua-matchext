@@ -28,6 +28,9 @@ Behaves the same as `matchext.gmatch()`, but on each iteration, produces a singl
 #### matchext.tgsub(s, pattern, repl [, n])
 Behaves the same as `matchext.gsub()` unless `repl` is a function. In that case, the `repl` function receives just a single argument, which is the table described for `matchext.tmatch()` above. If `repl` is a string or table, then it behaves exactly the same as `matchext.gsub()`, and you should probably use that instead.
 
+#### matchext.escape(s)
+Given a string `s`, returns a new string that is a copy of `s`, but with all ASCII characters that are not alphanumeric and are not control codes escaped. The returned string can be plugged into any pattern and will match exactly `s`.
+
 #### matchext.monkeypatch()
 `require 'matchext'` does not touch the standard library's `string` table; it simply returns a table of its own functions, like a well-behaved Lua library should. For those who want to use this library's functions as methods of strings, or who otherwise want to get their hands dirty, running `monkeypatch` will take all of this library's functions except itself and insert them into the `string` table. It will also create a subtable at `string.original`, into which the stock `find`, `match`, `gmatch`, and `gsub` functions will be moved to preserve them (although they will no longer be usable as methods).
 
