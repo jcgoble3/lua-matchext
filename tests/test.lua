@@ -123,6 +123,13 @@ describe('All tests:', function()
         assert.equal(matchext.escape(vals.ESC.str), vals.ESC.result)
     end)
 
+    it('Escaped string should match original', function()
+        assert.truthy(
+            matchext.match(vals.ESC.str,
+                           '^' .. matchext.escape(vals.ESC.str) .. '$')
+        )
+    end)
+
 
 
 
