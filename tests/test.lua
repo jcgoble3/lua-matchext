@@ -55,6 +55,14 @@ vals.EXP = {
     result = '0=bcdef;1=cd;2=d;3=6'
 }
 
+vals.ESC = {
+    -- str[-4] == U+2212 MINUS SIGN
+    -- str[-1] == U+00E9 LATIN SMALL LETTER E WITH ACUTE
+    -- file is encoded in UTF-8
+    str    =   'a+b/c\0d\te#f\255~−\127\né',
+    result = 'a%+b%/c\0d\te%#f\255%~−\127\né'
+}
+
 
 describe('All tests:', function()
     it('Make sure functions are present', function()
@@ -65,6 +73,7 @@ describe('All tests:', function()
         assert.is_function(matchext.tmatch)
         assert.is_function(matchext.tgmatch)
         assert.is_function(matchext.tgsub)
+        assert.is_function(matchext.escape)
         assert.is_function(matchext.monkeypatch)
     end)
 
@@ -110,6 +119,10 @@ describe('All tests:', function()
         assert.error(function() match:expand('%4') end)
     end)
 
+    it('Escape function', function()
+        assert.equal(matchext.escape(vals.ESC.str), vals.ESC.result)
+    end)
+
 
 
 
@@ -137,6 +150,7 @@ describe('All tests:', function()
         assert.is_function(string.tmatch)
         assert.is_function(string.tgmatch)
         assert.is_function(string.tgsub)
+        assert.is_function(string.escape)
     end)
 
     it('String.match should now handle %B', function()
@@ -144,7 +158,7 @@ describe('All tests:', function()
         assert.equal(vals.B.str:match(vals.B.patt), vals.B.result)
     end)
 
-    it('Functions in string.original should still error on %b', function()
+    it('Functions in string.original should still error on %B', function()
         assert.error(function()
             string.original.match(vals.B.str, vals.B.patt)
         end)
