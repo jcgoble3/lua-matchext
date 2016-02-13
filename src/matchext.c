@@ -297,16 +297,48 @@ static const char *min_expand (MatchState *ms, const char *s,
 }
 
 
+#define is_id_1st(c)  ((c) < 128 && isalnum(c))
+#define is_id(c)  (is_id_1st(c) || (c) == '_')
+
+
 static const char *start_capture (MatchState *ms, const char *s,
-                                    const char *p, int what) {
+                                    const char *p) {
+  int what = CAP_UNFINISHED;  /* EXT */
   const char *res;
   int level = ms->level;
   if (level >= LUA_MAXCAPTURES) luaL_error(ms->L, "too many captures");
   ms->capture[level].init = s;
+  if (*p == '?') {  /* EXT (whole block) */
+    const char *name_start;
+    ptrdiff_t length;
+    int i;
+    if (!(*++p == '<'))
+      luaL_error(ms->L, "malformed pattern");
+    if (!is_id_1st(*++p))
+      luaL_error(ms->L, "illegal name for capture");
+    name_start = p;
+    while (is_id(*++p))
+      ;
+    length = p - name_start;
+    if (length > MAX_CAPNAME_LEN)
+      luaL_error(ms->L, "capture name too long (limit %d characters)",
+                 MAX_CAPNAME_LEN);
+    if (!(*++p == '>'))
+      luaL_error(ms->L, "malformed pattern");
+    for (i = 0; i < length; i++) {
+      ms->capture[level].name[i] = name_start[i];
+    }
+    ms->capture[level].name[length] = '\0';
+  }
+  if (*p == ')') { /* position capture? */  /* EXT */
+    what = CAP_POSITION;
+    p++;
+  }
   ms->capture[level].len = what;
   ms->level = level+1;
-  if ((res=match(ms, s, p)) == NULL)  /* match failed? */
+  if ((res = match(ms, s, p)) == NULL) {  /* match failed? */
     ms->level--;  /* undo capture */
+  }
   return res;
 }
 
@@ -339,11 +371,8 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
   init: /* using goto's to optimize tail recursion */
   if (p != ms->p_end) {  /* end of pattern? */
     switch (*p) {
-      case '(': {  /* start capture */
-        if (*(p + 1) == ')')  /* position capture? */
-          s = start_capture(ms, s, p + 2, CAP_POSITION);
-        else
-          s = start_capture(ms, s, p + 1, CAP_UNFINISHED);
+      case '(': {  /* start capture */  /* EXT */
+        s = start_capture(ms, s, p + 1);
         break;
       }
       case ')': {  /* end capture */
