@@ -587,15 +587,6 @@ static int nospecials (const char *p, size_t l) {
 }
 
 
-#define reset_capnames \
-  { \
-    int i; \
-    for (i = 0; i < LUA_MAXCAPTURES; i++) { \
-      ms->capture[i].name[0] = '\0'; \
-    } \
-  }
-
-
 static void prepstate (MatchState *ms, lua_State *L,
                        const char *s, size_t ls, const char *p, size_t lp) {
   ms->L = L;
@@ -608,13 +599,15 @@ static void prepstate (MatchState *ms, lua_State *L,
     ms->nrep = A_REPS * ls + B_REPS;
   else  /* overflow (very long subject) */
     ms->nrep = MAX_SIZET;  /* no limit */
-  reset_capnames;  /* EXT */
 }
 
 
 static void reprepstate (MatchState *ms) {
+  int i;  /* EXT */
+  for (i = 0; i < LUA_MAXCAPTURES; i++) {  /* EXT */
+    ms->capture[i].name[0] = '\0';
+  }
   ms->level = 0;
-  reset_capnames;  /* EXT */
   lua_assert(ms->matchdepth == MAXCCALLS);
 }
 
