@@ -329,6 +329,10 @@ static const char *start_capture (MatchState *ms, const char *s,
       ms->capture[level].name[i] = name_start[i];
     }
     ms->capture[level].name[length] = '\0';
+    for (i = 0; i < level; i++) {
+      if (strcmp(ms->capture[i].name, ms->capture[level].name) == 0)
+        luaL_error(ms->L, "duplicate capture name");
+    }
   }
   if (*p == ')') { /* position capture? */  /* EXT */
     what = CAP_POSITION;
