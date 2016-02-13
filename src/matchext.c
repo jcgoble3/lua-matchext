@@ -28,11 +28,6 @@
 
 
 
-#define MATCHOBJNAME  "matchext.MatchTable"
-
-
-
-
 /*
 ** The pattern matching library below is copied from Lua 5.3.2's lstrlib.c.
 ** Modifications are marked with "EXT" (for "extension") in a comment.
@@ -612,11 +607,49 @@ static void reprepstate (MatchState *ms) {
 }
 
 
+/* EXT - new library function; some parts copied from 'str_gsub_aux' */
+static int matchobj_expand(lua_State *L) {
+  size_t lt, i;
+  const char *t;
+  luaL_Buffer b;
+  luaL_checktype(L, 1, LUA_TTABLE);
+  t = luaL_checklstring(L, 2, &lt);
+  luaL_buffinit(L, &b);
+  for (i = 0; i < lt; i++) {
+    if (t[i] != L_ESC)
+      luaL_addchar(&b, t[i]);
+    else {
+      i++;  /* skip ESC */
+      if (!isdigit(uchar(t[i]))) {
+        if (t[i] != L_ESC)
+          luaL_error(L, "invalid use of '%c' in replacement string", L_ESC);
+        luaL_addchar(&b, t[i]);
+      }
+      else {
+        int idx = t[i] - '0';
+#if LUA_VERSION_NUM == 501
+        int len = lua_objlen(L, 1);
+#else
+        int len = luaL_len(L, 1);
+#endif
+        if (idx > len) luaL_error(L, "invalid capture index %%%d", idx);
+        lua_rawgeti(L, 1, idx);
+        lua_tostring(L, -1);  /* if number, convert it to string */
+        luaL_addvalue(&b);  /* add capture to accumulated result */
+      }
+    }
+  }
+  luaL_pushresult(&b);
+  return 1;
+}
+
+
 /* EXT - entirely new function */
 static int build_result_table(MatchState *ms, const char *s, const char *e) {
   lua_State *L = ms->L;
   int i;
-  lua_newtable(L);  /* actual results table; stack -3 (-4 with value) */
+  lua_newtable(L);  /* main table; stack -4 (-5 with value) */
+  lua_newtable(L);  /* groups subtable; stack -3 (-4 with value) */
   lua_newtable(L);  /* match/capture starts; stack -2 (-3 with value) */
   lua_newtable(L);  /* match/capture ends; stack -1 (-2 with value) */
   lua_pushlstring(L, s, e - s);
@@ -627,6 +660,7 @@ static int build_result_table(MatchState *ms, const char *s, const char *e) {
   lua_rawseti(L, -2, 0);
   for (i = 1; i <= ms->level; i++) {
     ptrdiff_t cap_start = ms->capture[i-1].init - ms->src_init;
+    char *name = ms->capture[i-1].name;
     push_onecapture(ms, i - 1, s, e);
     lua_rawseti(L, -4, i);
     lua_pushinteger(L, cap_start + 1);
@@ -635,14 +669,28 @@ static int build_result_table(MatchState *ms, const char *s, const char *e) {
       lua_pushinteger(L, cap_start + 1);
     else lua_pushinteger(L, cap_start + ms->capture[i-1].len);
     lua_rawseti(L, -2, i);
+    if (name[0] != '\0') {
+      lua_rawgeti(L, -3, i);
+      lua_setfield(L, -4, name);
+      lua_rawgeti(L, -2, i);
+      lua_setfield(L, -3, name);
+      lua_rawgeti(L, -1, i);
+      lua_setfield(L, -2, name);
+    }
   }
-  lua_setfield(L, -3, "endpos");
-  lua_setfield(L, -2, "startpos");
+  lua_setfield(L, -4, "endpos");
+  lua_setfield(L, -3, "startpos");
+  lua_setfield(L, -2, "groups");
   lua_pushlstring(L, ms->p_init, ms->p_end - ms->p_init);
   lua_setfield(L, -2, "pattern");
   lua_pushlstring(L, ms->src_init, ms->src_end - ms->src_init);
   lua_setfield(L, -2, "source");
-  luaL_getmetatable(L, MATCHOBJNAME);
+  /* include this directly so that __index doesn't shadow it */
+  lua_pushcfunction(L, matchobj_expand);
+  lua_setfield(L, -2, "expand");
+  lua_newtable(L);
+  lua_getfield(L, -2, "groups");
+  lua_setfield(L, -2, "__index");
   lua_setmetatable(L, -2);
   return 1;
 }
@@ -899,43 +947,6 @@ static int table_gsub(lua_State *L) {
 
 
 
-/* EXT - new library function; some parts copied from 'str_gsub_aux' */
-static int matchobj_expand(lua_State *L) {
-  size_t lt, i;
-  const char *t;
-  luaL_Buffer b;
-  luaL_checktype(L, 1, LUA_TTABLE);
-  t = luaL_checklstring(L, 2, &lt);
-  luaL_buffinit(L, &b);
-  for (i = 0; i < lt; i++) {
-    if (t[i] != L_ESC)
-      luaL_addchar(&b, t[i]);
-    else {
-      i++;  /* skip ESC */
-      if (!isdigit(uchar(t[i]))) {
-        if (t[i] != L_ESC)
-          luaL_error(L, "invalid use of '%c' in replacement string", L_ESC);
-        luaL_addchar(&b, t[i]);
-      }
-      else {
-        int idx = t[i] - '0';
-#if LUA_VERSION_NUM == 501
-        int len = lua_objlen(L, 1);
-#else
-        int len = luaL_len(L, 1);
-#endif
-        if (idx > len) luaL_error(L, "invalid capture index %%%d", idx);
-        lua_rawgeti(L, 1, idx);
-        lua_tostring(L, -1);  /* if number, convert it to string */
-        luaL_addvalue(&b);  /* add capture to accumulated result */
-      }
-    }
-  }
-  luaL_pushresult(&b);
-  return 1;
-}
-
-
 static int escape(lua_State *L) {
   size_t sl;
   const char *s = luaL_checklstring(L, 1, &sl);
@@ -994,11 +1005,6 @@ static int monkeypatch(lua_State *L) {
 ** So a preprocessor directive is needed to avoid manually filling the table.
 */
 int luaopen_matchext (lua_State *L) {
-  luaL_newmetatable(L, MATCHOBJNAME);
-  lua_pushcfunction(L, matchobj_expand);
-  lua_setfield(L, -2, "expand");
-  lua_pushvalue(L, -1);
-  lua_setfield(L, -2, "__index");
 #if LUA_VERSION_NUM == 501
   lua_createtable(L, 0, 5);
   luaL_register(L, NULL, matchext_lib);
