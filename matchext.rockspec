@@ -15,17 +15,18 @@ This is a fork of Lua 5.3's pattern matching functions plus some added features.
 Current extra features:
 
 * `%Bxyz`: new token that behaves like `%bxy`, but with a specified escape character. `x` is the starting character, `y` is the escape character, and `z` is the ending character. As with the two arguments to the built-in `%b`, all three arguments are always interpreted literally and never imbue special meaning; this applies even to the pattern-matching escape character `%`.
-* Match functions that return their match data in a table instead of multiple return values
-* Uses Lua 5.3's pattern-matching library, even on 5.1 and 5.2. However, Lua 5.1 still cannot handle null characters in patterns. Eventually I'll investigate why.
-* Currently, that's it. More may come eventually, but no guarantee.
+* Match functions that return their match data in a table instead of multiple return values.
+* Escape function that returns a copy of the string with all ASCII punctuation escaped.
+* Uses Lua 5.3's pattern-matching library, even on 5.1 and 5.2. This means that some 5.3 features are backported to 5.1 and 5.2; most notably, 5.1 users can use the null character in patterns when using this library, a feature not supported in stock Lua until 5.2.
+* More will eventually come (I hope).
 
 Possible features in the future are listed below. The priority is given on a scale of 0 to 10, 10 being most important, but it is a rough approximation only and is in no way a guarantee of what order features will come in or if they will ever come.
 
-* UTF-8-aware matching (this would probably result in a backport of the whole `utf8` standard library to 5.1 and 5.2) (priority 6)
+* Named captures and backreferences (priority 9)
+* UTF-8-aware matching (priority 6)
 * Ability to apply quantifiers to parentheses (priority 4)
 * `|` for alternation, as in ordinary regex (priority 1)
 * Non-capturing parentheses (priority 8, but pointless unless and until support for group quantifiers or alternation is implemented)
-* Support for null characters in patterns for Lua 5.1 (priority 3)
 * Split function (priority 5)
 * ?????
 ]]
