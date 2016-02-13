@@ -51,6 +51,12 @@
 #endif
 
 
+/* EXT - new macro */
+#if !defined(MAX_CAPNAME_LEN)
+#define MAX_CAPNAME_LEN   12
+#endif
+
+
 /* macro to 'unsign' a character */
 #define uchar(c)	((unsigned char)(c))
 
@@ -110,6 +116,7 @@ typedef struct MatchState {
   struct {
     const char *init;
     ptrdiff_t len;
+    char name[MAX_CAPNAME_LEN + 1];  /* EXT */
   } capture[LUA_MAXCAPTURES];
 } MatchState;
 
@@ -495,6 +502,15 @@ static int nospecials (const char *p, size_t l) {
 }
 
 
+#define reset_capnames \
+  { \
+    int i; \
+    for (i = 0; i < LUA_MAXCAPTURES; i++) { \
+      ms->capture[i].name[0] = '\0'; \
+    } \
+  }
+
+
 static void prepstate (MatchState *ms, lua_State *L,
                        const char *s, size_t ls, const char *p, size_t lp) {
   ms->L = L;
@@ -507,11 +523,13 @@ static void prepstate (MatchState *ms, lua_State *L,
     ms->nrep = A_REPS * ls + B_REPS;
   else  /* overflow (very long subject) */
     ms->nrep = MAX_SIZET;  /* no limit */
+  reset_capnames;  /* EXT */
 }
 
 
 static void reprepstate (MatchState *ms) {
   ms->level = 0;
+  reset_capnames;  /* EXT */
   lua_assert(ms->matchdepth == MAXCCALLS);
 }
 
