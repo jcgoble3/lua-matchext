@@ -297,8 +297,49 @@ static const char *min_expand (MatchState *ms, const char *s,
 }
 
 
-#define is_id_1st(c)  ((c) < 128 && isalnum(c))
-#define is_id(c)  (is_id_1st(c) || (c) == '_')
+#define is_ascii(c)  ((c) < 128)
+#define is_alpha_underscore(c)  (isalpha(c) || (c) == '_')
+#define is_alnum_underscore(c)  (isalnum(c) || (c) == '_')
+
+#define is_id_1st(c)  (is_ascii(c) && is_alpha_underscore(c))
+#define is_id(c)  (is_ascii(c) || is_alnum_underscore(c))
+
+#define GROUP_NUM  1
+#define GROUP_NAME 2
+
+
+static const char *get_name(MatchState *ms, const char *p,
+                           char *arr, int *n, int *type) {
+  const char *name_start;
+  ptrdiff_t length;
+  int i;
+  if (isdigit(*p)) {
+    if (n == NULL) luaL_error(ms->L, "illegal capture name");
+    *type = GROUP_NUM;
+    *n = *p - '0';
+    while (isdigit(*++p)) {
+      *n = *n * 10 + (*p - '0');
+    }
+  }
+  else if (is_id_1st(*p)) {
+    *type = GROUP_NAME;
+    name_start = p;
+    while (is_id(*++p))
+      ;
+    length = p - name_start;
+    if (length > MAX_CAPNAME_LEN)
+      luaL_error(ms->L, "capture name too long (limit %d characters)",
+                 MAX_CAPNAME_LEN);
+    for (i = 0; i < length; i++) {
+      arr[i] = name_start[i];
+    }
+    arr[length] = '\0';
+  }
+  else luaL_error(ms->L, "illegal capture name or number");
+  if (!(*p++ == '>'))
+    luaL_error(ms->L, "malformed pattern (missing '>')");
+  return p;
+}
 
 
 static const char *start_capture (MatchState *ms, const char *s,
@@ -309,26 +350,10 @@ static const char *start_capture (MatchState *ms, const char *s,
   if (level >= LUA_MAXCAPTURES) luaL_error(ms->L, "too many captures");
   ms->capture[level].init = s;
   if (*p == '?') {  /* EXT (whole block) */
-    const char *name_start;
-    ptrdiff_t length;
-    int i;
+    int type, i;
     if (!(*++p == '<'))
       luaL_error(ms->L, "malformed pattern (invalid character after '(?')");
-    if (!is_id_1st(*++p))
-      luaL_error(ms->L, "illegal name for capture");
-    name_start = p;
-    while (is_id(*++p))
-      ;
-    length = p - name_start;
-    if (length > MAX_CAPNAME_LEN)
-      luaL_error(ms->L, "capture name too long (limit %d characters)",
-                 MAX_CAPNAME_LEN);
-    if (!(*++p == '>'))
-      luaL_error(ms->L, "malformed pattern (missing '>')");
-    for (i = 0; i < length; i++) {
-      ms->capture[level].name[i] = name_start[i];
-    }
-    ms->capture[level].name[length] = '\0';
+    get_name(ms, ++p, ms->capture[level].name, NULL, &type);
     for (i = 0; i < level; i++) {
       if (strcmp(ms->capture[i].name, ms->capture[level].name) == 0)
         luaL_error(ms->L, "duplicate capture name");
