@@ -313,7 +313,7 @@ static const char *start_capture (MatchState *ms, const char *s,
     ptrdiff_t length;
     int i;
     if (!(*++p == '<'))
-      luaL_error(ms->L, "malformed pattern");
+      luaL_error(ms->L, "malformed pattern (invalid character after '(?')");
     if (!is_id_1st(*++p))
       luaL_error(ms->L, "illegal name for capture");
     name_start = p;
@@ -324,7 +324,7 @@ static const char *start_capture (MatchState *ms, const char *s,
       luaL_error(ms->L, "capture name too long (limit %d characters)",
                  MAX_CAPNAME_LEN);
     if (!(*++p == '>'))
-      luaL_error(ms->L, "malformed pattern");
+      luaL_error(ms->L, "malformed pattern (missing '>')");
     for (i = 0; i < length; i++) {
       ms->capture[level].name[i] = name_start[i];
     }
