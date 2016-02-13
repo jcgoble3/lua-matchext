@@ -447,6 +447,33 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
             }
             break;
           }
+          case 'k': {  /* EXT */
+            char name[MAX_CAPNAME_LEN + 1];
+            int n, type;
+            if (!(*++p == '<'))
+              luaL_error(ms->L, "malformed pattern (missing '<' after %ck)",
+                         L_ESC);
+            p = get_name(ms, ++p, name, &n, &type);
+            if (type = GROUP_NUM) {
+              s = match_capture(ms, s, (int)('0' + n));
+            }
+            else {  /* named capture */
+              int i;
+              int found = 0;
+              for (i = 0; i < ms->level; i++) {
+                if (strcmp(name, ms->capture[i].name) == 0) {
+                  found = 1;
+                  break;
+                }
+              }
+              if (!found)
+                luaL_error(ms->L, "invalid backreference "
+                           "(group '%s' does not exist)", name);
+              s = match_capture(ms, s, (int)('1' + n));
+            }
+            if (s != NULL) goto init;
+            break;
+          }
           default: goto dflt;
         }
         break;
