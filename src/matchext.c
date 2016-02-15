@@ -297,7 +297,7 @@ static const char *min_expand (MatchState *ms, const char *s,
 #define is_alnum_underscore(c)  (isalnum(c) || (c) == '_')
 
 #define is_id_1st(c)  (is_ascii(c) && is_alpha_underscore(c))
-#define is_id(c)  (is_ascii(c) || is_alnum_underscore(c))
+#define is_id(c)  (is_ascii(c) && is_alnum_underscore(c))
 
 #define GROUP_NUM  1
 #define GROUP_NAME 2
