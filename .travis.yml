@@ -1,4 +1,6 @@
-language: C
+language: python
+
+sudo: false
 
 branches:
     only:
@@ -7,10 +9,9 @@ branches:
         - /v[0-9].+/
 
 env:
-    matrix:
-        - LUA_VERSION="5.1" LUA_POINT="5"
-        - LUA_VERSION="5.2" LUA_POINT="4"
-        - LUA_VERSION="5.3" LUA_POINT="2"
+    - LUA="lua 5.1"
+    - LUA="lua 5.2"
+    - LUA="lua 5.3"
 
 os:
     - linux
@@ -21,21 +22,19 @@ addons:
         packages:
             - libreadline-dev  # needed for Lua itself
 
-install:
-    # fetch and build Lua itself
-    - ./travis-stuff/install-lua.sh
-    # fetch and build LuaRocks
-    - ./travis-stuff/install-luarocks.sh
-    # add LuaRocks's module installation paths to package.path/package.cpath
-    - eval $(luarocks path)
-    # install testing framework
+before_install:
+    - pip install hererocks
+    - hererocks env --$LUA -rlatest
+    - source env/bin/activate
     - if [[ "$TRAVIS_TAG" = "" ]]; then luarocks install busted; fi
 
-script:
+install:
     # test that it builds; "source"ing is required because the $ROCKSPEC
     # variable is exported; not in "travis-stuff/" because it is run on my
     # local computers also
     - source ./build
+
+script:
     # test that it works correctly
     - if [[ "$TRAVIS_TAG" = "" ]]; then ./tests/test.lua -o TAP; fi
 
@@ -51,7 +50,7 @@ before_deploy:
 
 deploy:
     provider: script
-    # need to skip cleanup because of changes to rockspec in "before_script" step
+    # need to skip cleanup because of changes to rockspec in "install" step
     skip_cleanup: true
     on:
         tags: true

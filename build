@@ -4,4 +4,4 @@ export VERSION="$(cat VERSION)"
 
 export ROCKSPEC="matchext-$VERSION.rockspec"
 
-./build-core $1
+./build-core
