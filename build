@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [[ "$APPVEYOR" == "True" ]]; then
+    source env/build/activate
+fi
+
 export VERSION="$(cat VERSION)"
 
 export ROCKSPEC="matchext-$VERSION.rockspec"
