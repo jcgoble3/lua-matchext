@@ -13,9 +13,7 @@ env:
     - LUA="lua 5.2"
     - LUA="lua 5.3"
 
-os:
-    - linux
-    - osx
+os: linux
 
 addons:
     apt:
