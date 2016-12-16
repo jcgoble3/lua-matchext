@@ -23,7 +23,7 @@ before_build:
     - luarocks install busted
 
 build_script:
-    - set VERSION=`cat VERSION`
+    - set /p VERSION=<VERSION
     - set ROCKSPEC="matchext-%VERSION%.rockspec"
     - sed "s/##__VERSION__##/%VERSION%/" matchext.rockspec > "%ROCKSPEC%"
     - luarocks make "%ROCKSPEC%"
