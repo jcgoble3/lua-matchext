@@ -1,0 +1,29 @@
+branches:
+    only:
+        - develop
+        - master
+
+skip_tags: true
+
+image: Visual Studio 2015
+
+shallow_clone: true
+
+environment:
+    matrix:
+        - LUA: "lua 5.1"
+        - LUA: "lua 5.2"
+        - LUA: "lua 5.3"
+
+before_build:
+    - set PATH=C:\Python27\Scripts;%PATH%
+    - pip install hererocks
+    - hererocks env --%LUA% -rlatest
+    - call env\bin\activate
+    - luarocks install busted
+
+build_script:
+    - bash build
+
+test_script:
+    - lua tests/test.lua -o TAP
