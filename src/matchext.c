@@ -7,17 +7,7 @@
 
 
 
-/*
-** TODO: Figure out which stdlibs are needed and which aren't. Visual Studio
-** doesn't seem to care if the stdlib includes are absent, but Unix compilers
-** like gcc will almost certainly complain.
-*/
 #include <ctype.h>
-#include <float.h>
-#include <limits.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "lua.h"
