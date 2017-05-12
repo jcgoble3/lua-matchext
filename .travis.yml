@@ -54,4 +54,4 @@ deploy:
         tags: true
         condition: $DEPLOY = true
     # for security reasons, LUAROCKS_API_KEY is specified in repository settings
-    script: ./travis-stuff/deploy.sh
+    script: ./.travis-deploy
