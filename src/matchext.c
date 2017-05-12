@@ -34,7 +34,8 @@
 
 /*
 ** maximum number of captures that a pattern can do during
-** pattern-matching. This limit is arbitrary.
+** pattern-matching. This limit is arbitrary, but must fit in
+** an unsigned char.
 */
 #if !defined(LUA_MAXCAPTURES)
 #define LUA_MAXCAPTURES		32
@@ -94,9 +95,8 @@ typedef struct MatchState {
   const char *p_init;  /* start of pattern */ /* EXT */
   const char *p_end;  /* end ('\0') of pattern */
   lua_State *L;
-  size_t nrep;  /* limit to avoid non-linear complexity */
   int matchdepth;  /* control for recursive depth (to avoid C stack overflow) */
-  int level;  /* total number of captures (finished or unfinished) */
+  unsigned char level;  /* total number of captures (finished or unfinished) */
   struct {
     const char *init;
     ptrdiff_t len;
@@ -111,17 +111,6 @@ static const char *match (MatchState *ms, const char *s, const char *p);
 /* maximum recursion depth for 'match' */
 #if !defined(MAXCCALLS)
 #define MAXCCALLS	200
-#endif
-
-
-/*
-** parameters to control the maximum number of operators handled in
-** a match (to avoid non-linear complexity). The maximum will be:
-** (subject length) * A_REPS + B_REPS
-*/
-#if !defined(A_REPS)
-#define A_REPS		4
-#define B_REPS		100000
 #endif
 
 
@@ -387,8 +376,6 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
             s = NULL;  /* fail */
         }
         else {  /* matched once */
-          if (ms->nrep-- == 0)
-            luaL_error(ms->L, "pattern too complex");
           switch (*ep) {  /* handle optional suffix */
             case '?': {  /* optional */
               const char *res;
@@ -493,10 +480,6 @@ static void prepstate (MatchState *ms, lua_State *L,
   ms->src_end = s + ls;
   ms->p_init = p;  /* EXT */
   ms->p_end = p + lp;
-  if (ls < (MAX_SIZET - B_REPS) / A_REPS)
-    ms->nrep = A_REPS * ls + B_REPS;
-  else  /* overflow (very long subject) */
-    ms->nrep = MAX_SIZET;  /* no limit */
 }
 
 
@@ -617,6 +600,7 @@ static int table_match(lua_State *L) {
 typedef struct GMatchState {
   const char *src;  /* current position */
   const char *p;  /* pattern */
+  const char *lastmatch;  /* end of last match */
   int table;  /* EXT - whether to produce tables */
   MatchState ms;  /* match state */
 } GMatchState;
@@ -625,14 +609,12 @@ typedef struct GMatchState {
 static int gmatch_aux (lua_State *L) {
   GMatchState *gm = (GMatchState *)lua_touserdata(L, lua_upvalueindex(3));
   const char *src;
+  gm->ms.L = L;
   for (src = gm->src; src <= gm->ms.src_end; src++) {
     const char *e;
     reprepstate(&gm->ms);
-    if ((e = match(&gm->ms, src, gm->p)) != NULL) {
-      if (e == src)  /* empty match? */
-        gm->src =src + 1;  /* go at least one position */
-      else
-        gm->src = e;
+    if ((e = match(&gm->ms, src, gm->p)) != NULL && e != gm->lastmatch) {
+      gm->src = gm->lastmatch = e;
       if (gm->table)  /* EXT */
         return build_result_table(&gm->ms, src, e);
       else
@@ -652,7 +634,7 @@ static int gmatch_setup(lua_State *L, int table) {
   lua_settop(L, 2);  /* keep them on closure to avoid being collected */
   gm = (GMatchState *)lua_newuserdata(L, sizeof(GMatchState));
   prepstate(&gm->ms, L, s, ls, p, lp);
-  gm->src = s; gm->p = p;
+  gm->src = s; gm->p = p; gm->lastmatch = NULL;
   gm->table = table;  /* EXT */
   lua_pushcclosure(L, gmatch_aux, 3);  /* EXT */
   return 1;
@@ -733,12 +715,13 @@ static void add_value (MatchState *ms, luaL_Buffer *b, const char *s,
 /* EXT - mostly copied from 'str_gsub' */
 static int str_gsub_aux (lua_State *L, int table) {
   size_t srcl, lp;
-  const char *src = luaL_checklstring(L, 1, &srcl);
-  const char *p = luaL_checklstring(L, 2, &lp);
-  int tr = lua_type(L, 3);
-  lua_Integer max_s = luaL_optinteger(L, 4, srcl + 1);
+  const char *src = luaL_checklstring(L, 1, &srcl);  /* subject */
+  const char *p = luaL_checklstring(L, 2, &lp);  /* pattern */
+  const char *lastmatch = NULL;  /* end of last match */
+  int tr = lua_type(L, 3);  /* replacement type */
+  lua_Integer max_s = luaL_optinteger(L, 4, srcl + 1);  /* max replacements */
   int anchor = (*p == '^');
-  lua_Integer n = 0;
+  lua_Integer n = 0;  /* replacement count */
   MatchState ms;
   luaL_Buffer b;
   luaL_argcheck(L, tr == LUA_TNUMBER || tr == LUA_TSTRING ||
@@ -750,16 +733,16 @@ static int str_gsub_aux (lua_State *L, int table) {
     p++;  /* skip anchor character */  /* EXT */
   while (n < max_s) {
     const char *e;
-    reprepstate(&ms);
-    if ((e = match(&ms, src, p)) != NULL) {
+    reprepstate(&ms);  /* (re)prepare state for new match */
+    if ((e = match(&ms, src, p)) != NULL && e != lastmatch) {  /* match? */
       n++;
-      add_value(&ms, &b, src, e, tr, table);  /* EXT - new 'table' argument */
+      /* EXT - new 'table' argument */
+      add_value(&ms, &b, src, e, tr, table);  /* add replacement to buffer */
+      src = lastmatch = e;
     }
-    if (e && e>src) /* non empty match? */
-      src = e;  /* skip it */
-    else if (src < ms.src_end)
+    else if (src < ms.src_end)  /* otherwise, skip one character */
       luaL_addchar(&b, *src++);
-    else break;
+    else break;  /* end of subject */
     if (anchor) break;
   }
   luaL_addlstring(&b, src, ms.src_end-src);
