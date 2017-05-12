@@ -9,9 +9,9 @@ branches:
         - /v[0-9].+/
 
 env:
-    - LUA="lua 5.1"
-    - LUA="lua 5.2"
-    - LUA="lua 5.3"
+    - LUA="lua 5.1" DEPLOY=no
+    - LUA="lua 5.2" DEPLOY=no
+    - LUA="lua 5.3" DEPLOY=yes
 
 os: linux
 
@@ -36,12 +36,6 @@ script:
     # test that it works correctly
     - if [[ "$TRAVIS_TAG" = "" ]]; then ./tests/test.lua -o TAP; fi
 
-after_success:
-    - export DEPLOY=true
-    - if [[ $CC != gcc ]]; then export DEPLOY=false; fi
-    - if [[ $TRAVIS_OS_NAME != linux ]]; then export DEPLOY=false; fi
-    - if [[ $LUA_VERSION != "5.3" ]]; then export DEPLOY=false; fi
-
 before_deploy:
     # upload requires a JSON library
     - luarocks install lua-cjson
@@ -52,6 +46,6 @@ deploy:
     skip_cleanup: true
     on:
         tags: true
-        condition: $DEPLOY = true
+        condition: $DEPLOY = yes
     # for security reasons, LUAROCKS_API_KEY is specified in repository settings
     script: ./.travis-deploy
