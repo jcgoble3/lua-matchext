@@ -9,6 +9,7 @@
 
 #include <ctype.h>
 #include <string.h>
+#include <stddef.h>
 
 #include "lua.h"
 
